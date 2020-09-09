@@ -1,0 +1,124 @@
+#!/usr/bin/ansible-playbook
+---
+- name: Basic laptop setup
+  hosts: localhost
+  become: true
+  tasks:
+
+    - name: Firewalld backend is nftables
+      lineinfile:
+        path: /etc/firewalld/firewalld.conf
+        regexp: '^FirewallBackend='
+        line: FirewallBackend=nftables
+
+    - name: Default firewalld zone is drop
+      lineinfile:
+        path: /etc/firewalld/firewalld.conf
+        regexp: '^DefaultZone='
+        line: DefaultZone=drop
+
+    - name: >
+        User chris has supplementary groups wheel, libvirt, systemd-journal,
+        and dialout
+      user:
+        name: chris
+        groups: wheel,libvirt,systemd-journal,dialout
+        append: true
+
+    - name: Directory journald.conf.d exists
+      file:
+        path: /etc/systemd/journald.conf.d/
+        state: directory
+
+    - name: Journald keeps logs across reboots
+      copy:
+        content: |
+          [Journal]
+          Storage=persistent
+        dest: /etc/systemd/journald.conf.d/99-persist_logs.conf
+
+    - name: Directory systemd.conf.d exists
+      file:
+        path: /etc/systemd/system.conf.d/
+        state: directory
+
+    - name: Systemd resource accounting is on
+      copy:
+        content: |
+          [Manager]
+          DefaultCPUAccounting=yes
+          DefaultIOAccounting=yes
+          DefaultIPAccounting=yes
+          DefaultBlockIOAccounting=yes
+          DefaultMemoryAccounting=yes
+          DefaultTasksAccounting=yes
+        dest: /etc/systemd/system.conf.d/10-accounting.conf
+
+    - name: Directory sysctl.d exists
+      file:
+        path: /etc/sysctl.d/
+        state: directory
+
+    - name: IP forwarding is enabled through sysctl
+      copy:
+        content: |
+          net.ipv4.ip_forward = 1
+          net.ipv6.conf.all.forwarding = 1
+          net.ipv6.conf.all.disable_ipv6 = 0
+        dest: /etc/sysctl.d/99-ip_forwarding.conf
+
+    - name: Packages are installed
+      dnf:
+        name:
+          - ansible
+          - ansible-doc
+          - augeas
+          - bash-doc
+          - fish
+          - xonsh
+          - jq
+          - fossil
+          - fossil-doc
+          - git
+          - vim-X11
+          - tmux
+          - asciinema
+          - toolbox
+          - vagrant
+          - podman
+          - runc
+          - borg
+          - dar
+          - snapper
+          - pam_snapper
+          - python3-dnf-plugin-snapper
+          - qutebrowser
+          - ShellCheck
+          - systemd-journal-remote
+          - tuned-utils
+
+    - name: Input font is installed locally for chris
+      shell: |
+        curl 'https://input.fontbureau.com/build/'\
+        '?fontSelection=fourStyleFamily'\
+        '&regular=InputMonoCompressed-Light'\
+        '&italic=InputMonoCompressed-LightItalic'\
+        '&bold=InputMonoCompressed-Medium'\
+        '&boldItalic=InputMonoCompressed-MediumItalic'\
+        '&a=0'\
+        '&g=0'\
+        '&i=serifs_round'\
+        '&l=serifs_round'\
+        '&zero=slash'\
+        '&asterisk=height'\
+        '&braces=0'\
+        '&preset=default'\
+        '&line-height=0.9'\
+        '&accept=I+do'\
+        '&email=' --output inputfont.zip &&
+        unzip -j inputfont.zip '*.ttf' &&
+        mkdir -p /home/chris/.local/share/fonts &&
+        mv --force --verbose -- *.ttf /home/chris/.local/share/fonts &&
+        chown chris /home/chris/.local/share/fonts
+
+...
